@@ -50,6 +50,7 @@ func trimPrefix(n Node, name string) string {
 func FindGrouping(n Node, name string, seen map[string]bool) *Grouping {
 	name = trimPrefix(n, name)
 	for n != nil {
+		// fmt.Printf("FindGrouping: looking for %s in %s\n", name, n.NName())
 		// Grab the Grouping field of the underlying structure.  n is
 		// always a pointer to a structure,
 		e := reflect.ValueOf(n).Elem()
@@ -83,6 +84,11 @@ func FindGrouping(n Node, name string, seen map[string]bool) *Grouping {
 		v = e.FieldByName("Include")
 		if v.IsValid() {
 			for _, i := range v.Interface().([]*Include) {
+				if i.Module == nil {
+					fmt.Printf("Bar-find: failed to include %s\n", i.Name)
+					// continue
+				}
+				// fmt.Printf("FindGrouping: looking for %s in %s, %v\n", name, i.Name, seen[i.Module.Name])
 				if seen[i.Module.Name] {
 					// Prevent infinite loops in the case that we have already looked at
 					// this submodule. This occurs where submodules have include statements
@@ -97,5 +103,7 @@ func FindGrouping(n Node, name string, seen map[string]bool) *Grouping {
 		}
 		n = n.ParentNode()
 	}
+	// fmt.Printf("Bar2: Failed to find group %s\n", name)
+	// panic("Failed to find group")
 	return nil
 }

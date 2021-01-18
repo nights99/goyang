@@ -118,6 +118,7 @@ func resolveTypedefs() []error {
 func (t *Typedef) resolve() []error {
 	// If we have no parent we are a base type and
 	// are already resolved.
+	// fmt.Printf("typedef resolve: %v %v\n", t.Name, t.YangType)
 	if t.Parent == nil || t.YangType != nil {
 		return nil
 	}
@@ -159,6 +160,7 @@ func (t *Typedef) resolve() []error {
 // resolve resolves Type t, as well as the underlying typedef for t.  If t
 // cannot be resolved then one or more errors are returned.
 func (t *Type) resolve() (errs []error) {
+	// fmt.Printf("type resolve: %v %v\n", t.Name, t.YangType)
 	if t.YangType != nil {
 		return nil
 	}
@@ -195,6 +197,7 @@ check:
 		var pname string
 		switch {
 		case prefix == "", prefix == root.Prefix.Name:
+			fmt.Printf("resolve: %v %v", root.Prefix, t)
 			pname = root.Prefix.Name + ":" + t.Name
 		default:
 			pname = fmt.Sprintf("%s[%s]:%s", prefix, root.Prefix.Name, t.Name)
@@ -208,7 +211,9 @@ check:
 		// what module it is part of and if it is defined at the top
 		// level of that module.
 		var err error
+
 		td, err = typeDict.findExternal(t, prefix, name)
+		// fmt.Printf("type resolve2: %v %v %v %v\n", t.Name, prefix, name, err)
 		if err != nil {
 			return []error{err}
 		}
@@ -220,6 +225,7 @@ check:
 	// Make a copy of the typedef we are based on so we can
 	// augment it.
 	if td.YangType == nil {
+		fmt.Printf("%s: no YangType defined for %s %s\n", Source(td), source, td.Name)
 		return []error{fmt.Errorf("%s: no YangType defined for %s %s", Source(td), source, td.Name)}
 	}
 	y := *td.YangType

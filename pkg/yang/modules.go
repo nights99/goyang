@@ -138,6 +138,7 @@ func (ms *Modules) add(n Node) error {
 	mod.modules = ms
 
 	if o := m[fullName]; o != nil {
+		//panic("duplicate")
 		return fmt.Errorf("duplicate %s %s at %s and %s", kind, fullName, Source(o), Source(n))
 	}
 	m[fullName] = mod
@@ -264,6 +265,7 @@ func (ms *Modules) FindModuleByPrefix(prefix string) (*Module, error) {
 // prior to converting Node tree into an Entry tree.
 func (ms *Modules) process() []error {
 	var mods []*Module
+	// var submods []*Module
 	var errs []error
 
 	// Collect the list of modules we know about now so when we range
@@ -277,6 +279,14 @@ func (ms *Modules) process() []error {
 			errs = append(errs, err)
 		}
 	}
+	// for _, m := range ms.SubModules {
+	// 	submods = append(submods, m)
+	// }
+	// for _, m := range submods {
+	// 	if err := ms.include(m); err != nil {
+	// 		errs = append(errs, err)
+	// 	}
+	// }
 
 	// Resolve identities before resolving typedefs, otherwise when we resolve a
 	// typedef that has an identityref within it, then the identity dictionary
@@ -328,6 +338,8 @@ func (ms *Modules) Process() []error {
 		return errorSort(errs)
 	}
 
+	// At one point, tried reversing the order of these, but doesn't seem to
+	// be necessary now.
 	for _, m := range ms.Modules {
 		errs = append(errs, ToEntry(m).GetErrors()...)
 	}
@@ -406,22 +418,27 @@ func (ms *Modules) Process() []error {
 // an error if m, or recursively, any of the modules it includes or imports,
 // reference a module that cannot be found.
 func (ms *Modules) include(m *Module) error {
-	if ms.includes[m] {
-		return nil
-	}
+	// if ms.includes[m] {
+	// 	return nil
+	// }
 	ms.includes[m] = true
 
+	// fmt.Printf("include: %v\n", m.Name)
 	// First process any includes in this module.
 	for _, i := range m.Include {
+		// fmt.Printf("Processing include %v\n", i.Name)
 		im := ms.FindModule(i)
 		if im == nil {
+			// fmt.Printf("no such submodule: %s\n", i.Name)
 			return fmt.Errorf("no such submodule: %s", i.Name)
 		}
 		// Process the include statements in our included module.
 		if err := ms.include(im); err != nil {
+			fmt.Println(err)
 			return err
 		}
 		i.Module = im
+		// fmt.Printf("Include of %s set to non-NULL in %s\n", i.Name, m.Name)
 	}
 
 	// Next process any imports in this module.  Imports are used
@@ -429,7 +446,9 @@ func (ms *Modules) include(m *Module) error {
 	for _, i := range m.Import {
 		im := ms.FindModule(i)
 		if im == nil {
+			// fmt.Printf("no such module: %s\n", i.Name)
 			return fmt.Errorf("no such module: %s", i.Name)
+			// continue
 		}
 		// Process the include statements in our included module.
 		if err := ms.include(im); err != nil {

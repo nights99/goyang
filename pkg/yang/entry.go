@@ -581,6 +581,7 @@ func ToEntry(n Node) (e *Entry) {
 		if s.Default != nil {
 			e.Default = s.Default.Name
 		}
+		// fmt.Printf("Foo: %v %v %v\n", e.Description, s.Type.YangType, s.Name)
 		e.Type = s.Type.YangType
 		entryCache[n] = e
 		e.Config, err = tristateValue(s.Config)
@@ -754,6 +755,11 @@ func ToEntry(n Node) (e *Entry) {
 				// The key of the map used is a synthesised value which is formed by
 				// concatenating the name of this node and the included submodule,
 				// separated by a ":".
+				//fmt.Printf("Bar: %v :: %T :: %v\n", fv, a, a)
+				if a.Module == nil {
+					fmt.Printf("Bar-entry: %s failed to include %s\n", n.NName(), a.Name)
+					// continue
+				}
 				srcToIncluded := a.Module.Name + ":" + n.NName()
 				includedToSrc := n.NName() + ":" + a.Module.Name
 

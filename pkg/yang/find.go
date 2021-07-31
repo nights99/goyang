@@ -19,6 +19,7 @@ package yang
 import (
 	"reflect"
 	"strings"
+	"fmt"
 )
 
 // trimPrefix trims the current module's prefix from the given name. If the

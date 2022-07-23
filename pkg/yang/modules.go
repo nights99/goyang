@@ -29,6 +29,7 @@ type Modules struct {
 	Modules    map[string]*Module // All "module" nodes
 	SubModules map[string]*Module // All "submodule" nodes
 	includes   map[*Module]bool   // Modules we have already done include on
+	nsMu       sync.Mutex         // nsMu protects the byNS map.
 	byNS       map[string]*Module // Cache of namespace lookup
 	typeDict   *typeDictionary    // Cache for type definitions.
 	// entryCache is used to prevent unnecessary recursion into previously
@@ -39,7 +40,14 @@ type Modules struct {
 	// ignored. The keys of the map are a string that is formed by concatenating
 	// the name of the including (sub)module and the included submodule.
 	mergedSubmodule map[string]bool
-	mu              sync.Mutex // Mutex to protect byNS map
+	// ParseOptions sets the options for the current YANG module parsing. It can be
+	// directly set by the caller to influence how goyang will behave in the presence
+	// of certain exceptional cases.
+	ParseOptions Options
+	// Path is the list of directories to look for .yang files in.
+	Path []string
+	// pathMap is used to prevent adding dups in Path.
+	pathMap map[string]bool
 }
 
 // NewModules returns a newly created and initialized Modules.
@@ -52,6 +60,7 @@ func NewModules() *Modules {
 		typeDict:        newTypeDictionary(),
 		mergedSubmodule: map[string]bool{},
 		entryCache:      map[Node]*Entry{},
+		pathMap:         map[string]bool{},
 	}
 	return ms
 }
@@ -61,7 +70,7 @@ func NewModules() *Modules {
 // e.g., foo.yang is named foo).  An error is returned if the file is not
 // found or there was an error parsing the file.
 func (ms *Modules) Read(name string) error {
-	name, data, err := findFile(name)
+	name, data, err := ms.findFile(name)
 	if err != nil {
 		return err
 	}
@@ -221,8 +230,8 @@ func (ms *Modules) FindModule(n Node) *Module {
 // or returns an error.
 func (ms *Modules) FindModuleByNamespace(ns string) (*Module, error) {
 	// Protect the byNS map from concurrent accesses
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
+	ms.nsMu.Lock()
+	defer ms.nsMu.Unlock()
 
 	if m, ok := ms.byNS[ns]; ok {
 		return m, nil

@@ -313,17 +313,17 @@ func (ms *Modules) process() []error {
 // on Entry trees once all the modules and submodules in ms have been built.
 // Following augmentation, Process inserts implied case statements.  I.e.,
 //
-//   choice interface-type {
-//       container ethernet { ... }
-//   }
+//	choice interface-type {
+//	    container ethernet { ... }
+//	}
 //
 // has a case statement inserted to become:
 //
-//   choice interface-type {
-//       case ethernet {
-//           container ethernet { ... }
-//       }
-//   }
+//	choice interface-type {
+//	    case ethernet {
+//	        container ethernet { ... }
+//	    }
+//	}
 //
 // Process may return multiple errors if multiple errors were encountered
 // while processing.  Even though multiple errors may be returned, this does
@@ -407,7 +407,7 @@ func (ms *Modules) Process() []error {
 		for _, m := range devmods {
 			e := ToEntry(m)
 			if !dvP[e.Name] {
-				errs = append(errs, e.ApplyDeviate()...)
+				errs = append(errs, e.ApplyDeviate(ms.ParseOptions.DeviateOptions)...)
 				dvP[e.Name] = true
 			}
 		}

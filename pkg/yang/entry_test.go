@@ -2957,6 +2957,7 @@ func TestDeviation(t *testing.T) {
 	tests := []struct {
 		desc                    string
 		inFiles                 map[string]string
+		inParseOptions          Options
 		wants                   map[string][]deviationTest
 		wantParseErrSubstring   string
 		wantProcessErrSubstring string
@@ -3156,6 +3157,32 @@ func TestDeviation(t *testing.T) {
 				path: "/a-leaf",
 			}, {
 				path: "/a-leaflist",
+			}, {
+				path:  "survivor",
+				entry: &Entry{Name: "survivor"},
+			}},
+		},
+	}, {
+		desc:    "deviation - not supported but ignored by option",
+		inFiles: map[string]string{"deviate": mustReadFile(filepath.Join("testdata", "deviate-notsupported.yang"))},
+		inParseOptions: Options{
+			DeviateOptions: DeviateOptions{
+				IgnoreDeviateNotSupported: true,
+			},
+		},
+		wants: map[string][]deviationTest{
+			"deviate": {{
+				path:  "/target",
+				entry: &Entry{Name: "target"},
+			}, {
+				path:  "/target-list",
+				entry: &Entry{Name: "target-list"},
+			}, {
+				path:  "/a-leaf",
+				entry: &Entry{Name: "a-leaf"},
+			}, {
+				path:  "/a-leaflist",
+				entry: &Entry{Name: "a-leaflist"},
 			}, {
 				path:  "survivor",
 				entry: &Entry{Name: "survivor"},
@@ -3527,6 +3554,7 @@ func TestDeviation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			ms := NewModules()
+			ms.ParseOptions = tt.inParseOptions
 
 			for name, mod := range tt.inFiles {
 				if err := ms.Parse(mod, name); err != nil {
@@ -3928,5 +3956,167 @@ func TestLess(t *testing.T) {
 			}
 			t.Errorf("%s: incorrect less comparison: \"%s\" %c \"%s\"", tt.desc, sErrors[tt.i].s, cmpSymbol, sErrors[tt.j].s)
 		}
+	}
+}
+
+type customTestCases struct {
+	wantEntryPath       string
+	wantEntryCustomTest func(t *testing.T, e *Entry)
+}
+
+func TestOrderedBy(t *testing.T) {
+	tests := []struct {
+		name          string
+		inModules     map[string]string
+		testcases     []customTestCases
+		wantErrSubstr string
+	}{{
+		name: "ordered-by user",
+		inModules: map[string]string{
+			"test.yang": `
+			module test {
+				prefix "t";
+				namespace "urn:t";
+
+				list ordered-list {
+					key "name";
+					ordered-by user;
+					leaf name {
+						type string;
+					}
+				}
+
+				list unordered-list {
+					key "name";
+					ordered-by system;
+					leaf name {
+						type string;
+					}
+				}
+
+				list unordered-list2 {
+					key "name";
+					leaf name {
+						type string;
+					}
+				}
+
+				leaf-list ordered-leaflist {
+					ordered-by user;
+					type string;
+				}
+
+				leaf-list unordered-leaflist {
+					ordered-by system;
+					type string;
+				}
+
+				leaf-list unordered-leaflist2 {
+					type string;
+				}
+			}
+			`,
+		},
+		testcases: []customTestCases{{
+			wantEntryPath: "/test/ordered-list",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, true; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}, {
+			wantEntryPath: "/test/unordered-list",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, false; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}, {
+			wantEntryPath: "/test/unordered-list2",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, false; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}, {
+			wantEntryPath: "/test/ordered-leaflist",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, true; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}, {
+			wantEntryPath: "/test/unordered-leaflist",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, false; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}, {
+			wantEntryPath: "/test/unordered-leaflist2",
+			wantEntryCustomTest: func(t *testing.T, e *Entry) {
+				if got, want := e.ListAttr.OrderedByUser, false; got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+			},
+		}},
+	}, {
+		name: "ordered-by client: invalid argument",
+		inModules: map[string]string{
+			"test.yang": `
+			module test {
+				prefix "t";
+				namespace "urn:t";
+
+				list ordered-list {
+					key "name";
+					ordered-by client;
+					leaf name {
+						type string;
+					}
+				}
+			}
+			`,
+		},
+		wantErrSubstr: "ordered-by has invalid argument",
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := NewModules()
+			var errs []error
+			for n, m := range tt.inModules {
+				if err := ms.Parse(m, n); err != nil {
+					errs = append(errs, err)
+				}
+			}
+
+			if len(errs) > 0 {
+				t.Fatalf("ms.Parse(), got unexpected error parsing input modules: %v", errs)
+			}
+
+			if errs := ms.Process(); len(errs) > 0 {
+				if len(errs) == 1 {
+					if diff := errdiff.Substring(errs[0], tt.wantErrSubstr); diff != "" {
+						t.Fatalf("did not get expected error, %s", diff)
+					}
+					return
+				}
+				t.Fatalf("ms.Process(), got too many errors processing entries: %v", errs)
+			}
+
+			dir := map[string]*Entry{}
+			for _, m := range ms.Modules {
+				addTreeE(ToEntry(m), dir)
+			}
+
+			for _, tc := range tt.testcases {
+				e, ok := dir[tc.wantEntryPath]
+				if !ok {
+					t.Fatalf("could not find entry %s within the dir: %v", tc.wantEntryPath, dir)
+				}
+				tc.wantEntryCustomTest(t, e)
+			}
+		})
 	}
 }

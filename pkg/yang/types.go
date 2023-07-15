@@ -199,7 +199,11 @@ check:
 		switch {
 		case prefix == "", prefix == root.Prefix.Name:
 			fmt.Printf("resolve: %v %v", root.Prefix, t)
-			pname = root.Prefix.Name + ":" + t.Name
+			if root.Prefix != nil {
+				pname = root.Prefix.Name + ":" + t.Name
+			} else {
+				pname = root.Name + ":" + t.Name
+			}
 		default:
 			pname = fmt.Sprintf("%s[%s]:%s", prefix, root.Prefix.Name, t.Name)
 		}

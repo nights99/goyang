@@ -72,6 +72,9 @@ func FindGrouping(n Node, name string, seen map[string]bool) *Grouping {
 				if pname == name {
 					continue
 				}
+				if i.Module == nil {
+					continue
+				}
 				if g := FindGrouping(i.Module, pname, seen); g != nil {
 					return g
 				}

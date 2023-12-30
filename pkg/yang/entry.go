@@ -559,11 +559,11 @@ func ToEntry(n Node) (e *Entry) {
 		}
 	}
 	ms := RootNode(n).Modules
-	if e := ms.entryCache[n]; e != nil {
+	if e := ms.getEntryCache(n); e != nil {
 		return e
 	}
 	defer func() {
-		ms.entryCache[n] = e
+		ms.setEntryCache(n, e)
 	}()
 
 	// Copy in the extensions from our Node, if any.
@@ -1328,9 +1328,15 @@ func (e *Entry) Find(name string) *Entry {
 			e = e.Parent
 		}
 		if prefix, _ := getPrefix(parts[0]); prefix != "" {
-			m := module(FindModuleByPrefix(contextNode, prefix))
-			if m == nil {
+			mod := FindModuleByPrefix(contextNode, prefix)
+			if mod == nil {
 				e.addError(fmt.Errorf("cannot find module giving prefix %q within context entry %q", prefix, e.Path()))
+				return nil
+			}
+			m := module(mod)
+			if m == nil {
+				e.addError(fmt.Errorf("cannot find which module %q belongs to within context entry %q",
+					mod.NName(), e.Path()))
 				return nil
 			}
 			if m != e.Node.(*Module) {
@@ -1350,8 +1356,22 @@ func (e *Entry) Find(name string) *Entry {
 			_, part = getPrefix(part)
 			switch part {
 			case "input":
+				if e.RPC.Input == nil {
+					e.RPC.Input = &Entry{
+						Name: "input",
+						Kind: InputEntry,
+						Dir:  make(map[string]*Entry),
+					}
+				}
 				e = e.RPC.Input
 			case "output":
+				if e.RPC.Output == nil {
+					e.RPC.Output = &Entry{
+						Name: "output",
+						Kind: OutputEntry,
+						Dir:  make(map[string]*Entry),
+					}
+				}
 				e = e.RPC.Output
 			}
 		default:
